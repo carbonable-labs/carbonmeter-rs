@@ -1,0 +1,18 @@
+[package]
+name = "carbonmeter-rs"
+version = "0.1.0"
+edition = "2021"
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+apibara-sdk = { git = "https://github.com/apibara/dna", branch = "main" }
+apibara-core = { git = "https://github.com/apibara/dna", branch = "main" }
+anyhow = "1.0.71"
+tokio = "1.28.0"
+tracing = "0.1.37"
+futures = "0.3.28"
+env_logger = "0.10.0"
+tokio-stream = "0.1.14"
+chrono = "0.4.24"
