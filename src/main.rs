@@ -1,6 +1,8 @@
+use std::any;
+
 use apibara_core::{
     node::v1alpha2::DataFinality,
-    starknet::v1alpha2::{Block, Filter, HeaderFilter},
+    starknet::v1alpha2::{Block, Filter, HeaderFilter, EventFilter, EventWithTransaction, TransactionFilter},
 };
 use apibara_sdk::{ClientBuilder, Configuration, DataMessage, Uri};
 use chrono::{DateTime, Utc};
@@ -14,13 +16,23 @@ async fn main() -> anyhow::Result<()> {
 
     let (mut stream, configuration_handle) = ClientBuilder::<Filter, Block>::default()
         // .with_bearer_token("dna_ZoZMlBLvG81yBCQ5cL8R".to_string())
-        .connect(Uri::from_static("https://goerli.starknet.a5a.ch"))
+        .connect(Uri::from_static("https://mainnet.starknet.a5a.ch:443"))
         .await
         .unwrap();
 
+    // let config = Configuration::<Filter>::default()
+    //     .with_finality(DataFinality::DataStatusPending)
+    //     .with_filter(|mut filter| filter.with_header(HeaderFilter { weak: false }).add_transaction(TransactionFilter { filter: None }).build());
+
     let config = Configuration::<Filter>::default()
-        .with_finality(DataFinality::DataStatusPending)
-        .with_filter(|mut filter| filter.with_header(HeaderFilter { weak: false }).build());
+    .with_finality(DataFinality::DataStatusPending)
+    .with_filter(|mut filter| {
+        filter
+            .with_header(HeaderFilter { weak: false })
+            .add_transaction(|transaction_filter| transaction_filter)
+            .add_event(|event_filter| event_filter)
+            .build()
+    });
 
     configuration_handle.send(config).await?;
 
@@ -52,13 +64,25 @@ async fn main() -> anyhow::Result<()> {
                 // go through all blocks in the batch
                 for block in batch {
                     // get block header and timestamp
-                    let header = block.header.unwrap_or_default();
+                    let header = block.header.clone().unwrap_or_default();
                     let timestamp: DateTime<Utc> =
                         header.timestamp.unwrap_or_default().try_into()?;
                     //println!("  Block {:>6} ({})", header.block_number, timestamp);
+                    let transactions = block.transactions.clone();
+                    
+                    //only if events.len() is >0 then print else not print
+                    //
+                    if transactions.len() > 0 {
+                        println!("  Block {:>6} ({}) with {} transactions", header.block_number, timestamp, transactions.len());
+                    }
+                    else {
+                        println!("Debug: {:?}", block);
+                    }
 
+                    // println!("  Block {:>6} ({}) with {} events", header.block_number, timestamp, events.len());
                     // go through all events in the block
                     for event_with_tx in block.events {
+                        println!("  Event");
                         // event includes the tx that triggered the event emission
                         // it also include the receipt in `event_with_tx.receipt`, but
                         // it's not used in this example
