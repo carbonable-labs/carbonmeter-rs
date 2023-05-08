@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
     configuration_handle.send(config).await?;
 
     // Initialize a Vec to store contract addresses and their transaction counts
-    let mut contract_transaction_counts: Vec<(String, u32)> = Vec::new();
+    let mut contract_transaction_counts: Vec<(String, usize, (u64, u64, u64, u64))> = vec![];
 
 
 
@@ -68,68 +68,80 @@ async fn main() -> anyhow::Result<()> {
                     let timestamp: DateTime<Utc> =
                         header.timestamp.unwrap_or_default().try_into()?;
                     //println!("  Block {:>6} ({})", header.block_number, timestamp);
-                    let transactions = block.transactions.clone();
+                    // let events: Vec<EventWithTransaction> = block.events.clone();
+                    // let transactions = block.transactions.clone();
                     
                     //only if events.len() is >0 then print else not print
                     //
-                    if transactions.len() > 0 {
-                        println!("  Block {:>6} ({}) with {} transactions", header.block_number, timestamp, transactions.len());
-                    }
-                    else {
-                        println!("Debug: {:?}", block);
-                    }
+                    // if transactions.len() > 0 {
+                    //     println!("  Block {:>6} ({}) with {} transactions", header.block_number, timestamp, transactions.len());
+                    // }
+                    // else {
+                    //     println!("  Block {:>6} ({}) with {} events", header.block_number, timestamp, events.len());
+                    // }
 
                     // println!("  Block {:>6} ({}) with {} events", header.block_number, timestamp, events.len());
                     // go through all events in the block
                     for event_with_tx in block.events {
-                        println!("  Event");
+
                         // event includes the tx that triggered the event emission
                         // it also include the receipt in `event_with_tx.receipt`, but
                         // it's not used in this example
                         let event = event_with_tx.event.unwrap_or_default();
                         let tx = event_with_tx.transaction.unwrap_or_default();
-                        let tx_hash = tx
+                        let tx_hash = tx.clone()
                             .meta
                             .unwrap_or_default()
                             .hash
                             .unwrap_or_default()
                             .to_hex();
 
-                        let from_addr = event.data[0].to_hex();
-                        let to_addr = event.data[1].to_hex();
-
-                        println!(
-                            "    {} => {} ({})",
-                            &from_addr[..8],
-                            &to_addr[..8],
-                            &tx_hash[..8]
+                        // print tx_hash
+                        let gas = (
+                            tx.meta.clone().unwrap_or_default().max_fee.unwrap_or_default().lo_lo,
+                            tx.meta.clone().unwrap_or_default().max_fee.unwrap_or_default().lo_hi,
+                            tx.meta.clone().unwrap_or_default().max_fee.unwrap_or_default().hi_lo,
+                            tx.meta.clone().unwrap_or_default().max_fee.unwrap_or_default().hi_hi,
                         );
+                        // println!("tx_hash: {} ; gas: {:?}", tx_hash, tx.meta.clone().unwrap_or_default().max_fee.unwrap_or_default());
+                        
+                        //print events length
+                        // println!("Block {:>6} ({}) with {} events", header.block_number, timestamp, events.len());
 
-                         // Update the transaction count for the contract address
-                            // if let Some((_address, count)) = contract_transaction_counts
-                            // .iter_mut()
-                            // .find(|(address, _count)| address == &to_addr)
-                            //     {
-                            //         *count += 1;
-                            //         println!("Updated: {}: {}", _address, count);
-                            //     } else {
-                            //         contract_transaction_counts.push((to_addr.clone(), 1));
-                            //         println!("Added: {}: 1", to_addr);
-                            //     }
+                        // if enven.data.len() <=1 then print error
+                        // ts_hash not empty then print error without this error " a local variable with a similar name exists: `tx_hash`"
+                        if event.data.len() <= 1 {
+                            error!("Event data is empty");
+                        }
+                        else {
+                            let from_addr = event.data[0].to_hex();
+                            let to_addr = event.data[1].to_hex();
 
-                                // Find the index of the contract_address (from_addr) in the Vec.
-                            if let Some(index) = contract_transaction_counts.iter().position(|(addr, _)| addr == &from_addr) {
+                            // println!(
+                            //     "    {} => {} ({})",
+                            //     &from_addr[..8],
+                            //     &to_addr[..8],
+                            //     &tx_hash[..8]
+                            // );
+
+                            if let Some(index) = contract_transaction_counts.iter().position(|(addr, _, _)| addr == &from_addr) {
                                 // Increment the transaction count for the contract_address.
                                 contract_transaction_counts[index].1 += 1;
-                                println!("Updated: {}: {}", from_addr, contract_transaction_counts[index].1);
+                                // Add gas for the contract_address.
+                                contract_transaction_counts[index].2.0 += gas.0;
+                                contract_transaction_counts[index].2.1 += gas.1;
+                                contract_transaction_counts[index].2.2 += gas.2;
+                                contract_transaction_counts[index].2.3 += gas.3;
+                                println!("Update: {} on {} events: {}; gas: {:?}", timestamp , from_addr, contract_transaction_counts[index].1, contract_transaction_counts[index].2);
                             } else {
-                                // Insert the contract_address with a transaction count of 1.
-                                contract_transaction_counts.push((from_addr.clone(), 1));
-                                println!("Added: {}: 1", from_addr);
+                                // Insert the contract_address with a transaction count of 1 and the gas value.
+                                contract_transaction_counts.push((from_addr.clone(), 1, gas));
+                                println!("Added: {} on {} events: 1; gas: {:?}", timestamp , from_addr, gas);
                             }
-
-
+                        }
                     }
+
+
                 }
             }
             DataMessage::Invalidate { cursor } => {
