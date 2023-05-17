@@ -64,6 +64,7 @@ async fn main() -> anyhow::Result<()> {
 
     let config = Configuration::<Filter>::default()
     .with_finality(DataFinality::DataStatusPending)
+    .with_starting_block(54037)
     .with_filter(|mut filter| {
         filter
             .with_header(HeaderFilter { weak: false })
@@ -107,7 +108,7 @@ async fn main() -> anyhow::Result<()> {
                     let header = block.header.clone().unwrap_or_default();
                     let timestamp: DateTime<Utc> =
                         header.timestamp.unwrap_or_default().try_into()?;
-                    //println!("  Block {:>6} ({})", header.block_number, timestamp);
+                    println!("  Block {:>6} ({})", header.block_number, timestamp);
                     // let events: Vec<EventWithTransaction> = block.events.clone();
                     let transactions = block.transactions.clone();
                     
@@ -115,21 +116,29 @@ async fn main() -> anyhow::Result<()> {
                     // println!("  Block {:>6} ({}) with {} tx ", header.block_number, timestamp, transactions.len());
                     // go through all events in the block
 
-                    
-
+                    //only loop for those transaction 0x036cda58864369aed48efcf81673615cf3f83423c9de83aecccbb3d79f28f5a3 block 54038
+                    if header.block_number == 54038 {
                     // ...
 
                     for tx_with_receipt in block.transactions {
                         if let Some(tx) = tx_with_receipt.transaction {
-
+                            if tx.meta.as_ref().and_then(|meta| meta.hash.as_ref()).map(|hash| hash.to_hex()).unwrap_or_else(|| String::from("No hash")) == "0x036cda58864369aed48efcf81673615cf3f83423c9de83aecccbb3d79f28f5a3" {
                             match tx.transaction {
                                 Some(ApiTransaction::InvokeV0(invoke_v0)) => {
                                     let from_addr = invoke_v0.contract_address.clone().unwrap().to_hex();
                                     update_transaction_count("InvokeV0", &from_addr, &mut contract_transaction_counts);
+                                    //print calldata it's a Vec<u8>
+                                    invoke_v0.calldata.iter().for_each(|x| println!("{:?}", x.to_string()));  
+                                    println!("braa {:?} ", tx.meta.as_ref().and_then(|meta| meta.hash.as_ref()).map(|hash| hash.to_hex()).unwrap_or_else(|| String::from("No hash")));
+                                    // pint tx hash
+                                    // println!("  InvokeV0: tx_hash {:?}", tx_with_receipt.receipt.tx_hash.to_hex());
                                 }
                                 Some(ApiTransaction::InvokeV1(invoke_v1)) => {
                                     let from_addr = invoke_v1.sender_address.clone().unwrap().to_hex();
                                     update_transaction_count("InvokeV1", &from_addr, &mut contract_transaction_counts);
+                                    //print calldata it's a Vec<u8>
+                                    invoke_v1.calldata.iter().for_each(|x| println!("{:?}", x.to_string()));  
+                                    println!("braa {:?} ", tx.meta.as_ref().and_then(|meta| meta.hash.as_ref()).map(|hash| hash.to_hex()).unwrap_or_else(|| String::from("No hash")));
                                 }
                                 Some(ApiTransaction::Deploy(deploy)) => {
                                     let from_addr = deploy.class_hash.clone().unwrap().to_hex();
@@ -151,8 +160,12 @@ async fn main() -> anyhow::Result<()> {
                                     println!("No transaction data");
                                 }
                             }
+
+                        }
                         }
                     }
+
+                }
 
 
                 }
