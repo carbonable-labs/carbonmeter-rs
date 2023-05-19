@@ -106,23 +106,22 @@ async fn main() -> anyhow::Result<()> {
                 for block in batch {
                     // get block header and timestamp
                     let header = block.header.clone().unwrap_or_default();
-                    let timestamp: DateTime<Utc> =
-                        header.timestamp.unwrap_or_default().try_into()?;
-                    println!("  Block {:>6} ({})", header.block_number, timestamp);
-                    // let events: Vec<EventWithTransaction> = block.events.clone();
-                    let transactions = block.transactions.clone();
+                    // let timestamp: DateTime<Utc> =
+                    //     header.timestamp.unwrap_or_default().try_into()?;
+                    // println!("  Block {:>6} ({})", header.block_number, timestamp);
+                    // // let events: Vec<EventWithTransaction> = block.events.clone();
+                    // let transactions = block.transactions.clone();
                     
 
                     // println!("  Block {:>6} ({}) with {} tx ", header.block_number, timestamp, transactions.len());
                     // go through all events in the block
 
-                    //only loop for those transaction 0x036cda58864369aed48efcf81673615cf3f83423c9de83aecccbb3d79f28f5a3 block 54038
-                    if header.block_number == 54038 {
-                    // ...
+                    // //only loop for those transaction 0x036cda58864369aed48efcf81673615cf3f83423c9de83aecccbb3d79f28f5a3 block 54038
+                    // if header.block_number == 54038 {
+                    // // ...
 
                     for tx_with_receipt in block.transactions {
                         if let Some(tx) = tx_with_receipt.transaction {
-                            if tx.meta.as_ref().and_then(|meta| meta.hash.as_ref()).map(|hash| hash.to_hex()).unwrap_or_else(|| String::from("No hash")) == "0x036cda58864369aed48efcf81673615cf3f83423c9de83aecccbb3d79f28f5a3" {
                             match tx.transaction {
                                 Some(ApiTransaction::InvokeV0(invoke_v0)) => {
                                     let from_addr = invoke_v0.contract_address.clone().unwrap().to_hex();
@@ -137,7 +136,28 @@ async fn main() -> anyhow::Result<()> {
                                     let from_addr = invoke_v1.sender_address.clone().unwrap().to_hex();
                                     update_transaction_count("InvokeV1", &from_addr, &mut contract_transaction_counts);
                                     //print calldata it's a Vec<u8>
-                                    invoke_v1.calldata.iter().for_each(|x| println!("{:?}", x.to_string()));  
+                                    
+                                    // Convert the first line to the number of call data blocks
+                                    // ... (previous code)
+
+                                    // Initialize the iterator
+                                    let mut iter = invoke_v1.calldata.iter().peekable();
+
+                                    // Get the first line and convert it to an integer
+                                    let first_line = iter.next().expect("Calldata should not be empty").to_string();
+                                    let count = usize::from_str_radix(&first_line[2..], 16).expect("Could not parse count");
+
+                                    for _ in 0..count {
+                                        let line = iter.next().expect("Expected a contract address").to_string();
+                                        println!("Contract Address: \"{}\"", line);
+                                        // Skip the next 3 lines
+                                        for _ in 0..3 {
+                                            if iter.peek().is_some() {
+                                                iter.next();
+                                            }
+                                        }
+                                    }
+
                                     println!("braa {:?} ", tx.meta.as_ref().and_then(|meta| meta.hash.as_ref()).map(|hash| hash.to_hex()).unwrap_or_else(|| String::from("No hash")));
                                 }
                                 Some(ApiTransaction::Deploy(deploy)) => {
@@ -161,11 +181,11 @@ async fn main() -> anyhow::Result<()> {
                                 }
                             }
 
-                        }
+                        
                         }
                     }
 
-                }
+                
 
 
                 }
