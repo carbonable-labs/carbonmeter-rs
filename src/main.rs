@@ -135,12 +135,7 @@ async fn main() -> anyhow::Result<()> {
                                 Some(ApiTransaction::InvokeV1(invoke_v1)) => {
                                     let from_addr = invoke_v1.sender_address.clone().unwrap().to_hex();
                                     update_transaction_count("InvokeV1", &from_addr, &mut contract_transaction_counts);
-                                    //print calldata it's a Vec<u8>
-                                    
-                                    // Convert the first line to the number of call data blocks
-                                    // ... (previous code)
-
-                                    // Initialize the iterator
+                            
                                     let mut iter = invoke_v1.calldata.iter().peekable();
 
                                     // Get the first line and convert it to an integer
