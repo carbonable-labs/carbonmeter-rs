@@ -56,7 +56,6 @@ async fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     let (mut stream, configuration_handle) = ClientBuilder::<Filter, Block>::default()
-        // .with_bearer_token("dna_ZoZMlBLvG81yBCQ5cL8R".to_string())
         .connect(Uri::from_static("https://mainnet.starknet.a5a.ch:443"))
         .await
         .unwrap();
