@@ -21,7 +21,7 @@ RUN set -eux; \
     export DEBIAN_FRONTEND=noninteractive; \
     echo "deb http://deb.debian.org/debian unstable main" >> /etc/apt/sources.list; \
     apt update; \
-    apt install --yes pkg-config gcc ca-certificates openssl libssl-dev protobuf-compiler=3.21.12-3 libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev clang liburing-dev; \
+    apt install --yes pkg-config gcc ca-certificates openssl libssl-dev protobuf-compiler=3.21.12-3 libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev clang liburing-dev supervisor; \
     apt clean autoclean; \
     apt autoremove --yes; \
     rm -rf /var/lib/apt/* /var/lib/dpkg/* /var/lib/cache/* /var/lib/log/*; \
@@ -31,5 +31,6 @@ WORKDIR /srv/www
 
 COPY --from=builder /srv/www/carbonmeter-api ./carbonmeter-api
 COPY --from=builder /srv/www/build-event-store ./build-event-store
+COPY ./supervisor.conf ./supervisor.conf
 
 CMD ["./carbonmeter-api"] 

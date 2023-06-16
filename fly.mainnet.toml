@@ -12,13 +12,12 @@ kill_timeout = "5s"
   auto_rollback = true
 
 [processes]
-  api = "/srv/www/carbonmeter-api"
-  indexer = "/srv/www/build-event-store"
+  indexer = "/usr/bin/supervisord -c /srv/www/supervisor.conf"
 
 [[services]]
   protocol = "tcp"
   internal_port = 8080
-  processes = ["api"]
+  processes = ["indexer"]
 
   [[services.ports]]
     port = 80
@@ -42,3 +41,4 @@ kill_timeout = "5s"
 [mounts]
 source = "carbonmeter_mainnet"
 destination = "/data"
+processes = ["indexer"]

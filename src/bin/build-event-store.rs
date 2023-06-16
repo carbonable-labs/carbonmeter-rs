@@ -2,8 +2,8 @@ use anyhow::Context;
 use apibara_core::{
     node::v1alpha2::DataFinality,
     starknet::v1alpha2::{
-        transaction::Transaction, Block, BlockHeader, Filter, HeaderFilter, TransactionMeta,
-        TransactionWithReceipt,
+        transaction::Transaction, Block, BlockHeader, FieldElement, Filter, HeaderFilter,
+        InvokeTransactionV0, InvokeTransactionV1, TransactionMeta, TransactionWithReceipt,
     },
 };
 use apibara_sdk::{ClientBuilder, Configuration, DataMessage};
@@ -213,6 +213,16 @@ async fn handle_invoke_v0(
             // Use this when you want to retrieve execution_resources
             // let tx_resources = get_transaction_execution_resources(hash.to_hex().as_str()).await?;
             // println!("Execution Resources : {:#?}", tx_resources);
+            let extracted = extract_v0_tx_to(t).await?;
+            for to_address in extracted {
+                increase_transaction_count(
+                    db.clone(),
+                    hash.to_hex().as_str(),
+                    &to_address.to_hex(),
+                    header.timestamp.clone().unwrap().seconds,
+                )
+                .await?;
+            }
 
             return Ok(increase_transaction_count(
                 db,
@@ -246,6 +256,16 @@ async fn handle_invoke_v1(
             // Use this when you want to retrieve execution_resources
             // let tx_resources = get_transaction_execution_resources(hash.to_hex().as_str()).await?;
             // println!("Execution Resources : {:#?}", tx_resources);
+            let extracted = extract_v1_tx_to(t).await?;
+            for to_address in extracted {
+                increase_transaction_count(
+                    db.clone(),
+                    hash.to_hex().as_str(),
+                    &to_address.to_hex(),
+                    header.timestamp.clone().unwrap().seconds,
+                )
+                .await?;
+            }
 
             return Ok(increase_transaction_count(
                 db,
@@ -260,6 +280,33 @@ async fn handle_invoke_v1(
         }
     }
     Err(TransactionError::Invalid)
+}
+
+/// Extract [`to`] from [`InvokeTransactionV1`]
+async fn extract_v1_tx_to(
+    transaction: &InvokeTransactionV1,
+) -> Result<Vec<&FieldElement>, TransactionError> {
+    let mut extracted = Vec::new();
+    if let Some(len) = transaction.calldata.first() {
+        transaction
+            .calldata
+            .iter()
+            .skip(1)
+            .collect::<Vec<&FieldElement>>()
+            .as_slice()
+            .chunks(4)
+            .take(len.hi_hi.try_into().unwrap())
+            .for_each(|c| extracted.push(c[0]));
+    }
+
+    Ok(extracted)
+}
+
+/// Extract [`to`] from [`InvokeTransactionV0`]
+async fn extract_v0_tx_to(
+    transaction: &InvokeTransactionV0,
+) -> Result<Vec<&FieldElement>, TransactionError> {
+    Ok(vec![&transaction.calldata[0]])
 }
 
 /// [`Transaction::Deploy`] handler
@@ -397,3 +444,148 @@ async fn handle_deploy_account(
 // transaction type you have to parse out "to" based on calldata order.
 // eg. InvokeV0 - calldata[0] = to
 // eg. InvokeV1 - calldata[1] = CallArray (find to in callarray)
+//
+#[cfg(test)]
+mod tests {
+    use apibara_core::starknet::v1alpha2::{FieldElement, InvokeTransactionV1};
+
+    use crate::extract_v1_tx_to;
+
+    #[tokio::test]
+    async fn test_extract_to_transaction() {
+        let calldata = [
+            FieldElement {
+                lo_lo: 0,
+                lo_hi: 0,
+                hi_lo: 0,
+                hi_hi: 1,
+            },
+            FieldElement {
+                lo_lo: 528642610080664005,
+                lo_hi: 2276061702884689271,
+                hi_lo: 11153158363279249689,
+                hi_hi: 8056614741232289178,
+            },
+            FieldElement {
+                lo_lo: 184998192538858248,
+                lo_hi: 14131786057843337807,
+                hi_lo: 12306571739644741482,
+                hi_hi: 7726687080764924166,
+            },
+            FieldElement {
+                lo_lo: 0,
+                lo_hi: 0,
+                hi_lo: 0,
+                hi_hi: 0,
+            },
+            FieldElement {
+                lo_lo: 0,
+                lo_hi: 0,
+                hi_lo: 0,
+                hi_hi: 14,
+            },
+        ];
+        let tx = InvokeTransactionV1 {
+            sender_address: Some(FieldElement {
+                lo_lo: 431078386762221800,
+                lo_hi: 4723068717221267708,
+                hi_lo: 13141689637839447599,
+                hi_hi: 5182790949074909961,
+            }),
+            calldata: calldata.to_vec(),
+        };
+
+        let extracted = extract_v1_tx_to(&tx).await.unwrap();
+        assert!(extracted.len() == 1);
+        assert_eq!(
+            extracted[0].to_hex().as_str(),
+            "0x07561da72afe49c51f96320f475005779ac7fa707eefd1196fced86bdf53859a"
+        );
+
+        let calldata = [
+            FieldElement {
+                lo_lo: 0,
+                lo_hi: 0,
+                hi_lo: 0,
+                hi_hi: 2,
+            },
+            // to
+            FieldElement {
+                lo_lo: 528642610080664005,
+                lo_hi: 2276061702884689271,
+                hi_lo: 11153158363279249689,
+                hi_hi: 8056614741232289178,
+            },
+            // selector
+            FieldElement {
+                lo_lo: 184998192538858248,
+                lo_hi: 14131786057843337807,
+                hi_lo: 12306571739644741482,
+                hi_hi: 7726687080764924166,
+            },
+            // data_offset
+            FieldElement {
+                lo_lo: 0,
+                lo_hi: 0,
+                hi_lo: 0,
+                hi_hi: 0,
+            },
+            // data_len
+            FieldElement {
+                lo_lo: 0,
+                lo_hi: 0,
+                hi_lo: 0,
+                hi_hi: 14,
+            },
+            // to
+            FieldElement {
+                lo_lo: 184998192538858248,
+                lo_hi: 14131786057843337807,
+                hi_lo: 12306571739644741482,
+                hi_hi: 7726687080764924166,
+            },
+            // selector
+            FieldElement {
+                lo_lo: 528642610080664005,
+                lo_hi: 2276061702884689271,
+                hi_lo: 11153158363279249689,
+                hi_hi: 8056614741232289178,
+            },
+            // data_offset
+            FieldElement {
+                lo_lo: 0,
+                lo_hi: 0,
+                hi_lo: 0,
+                hi_hi: 0,
+            },
+            // data_len
+            FieldElement {
+                lo_lo: 0,
+                lo_hi: 0,
+                hi_lo: 0,
+                hi_hi: 14,
+            },
+        ];
+        let tx = InvokeTransactionV1 {
+            sender_address: Some(FieldElement {
+                lo_lo: 431078386762221800,
+                lo_hi: 4723068717221267708,
+                hi_lo: 13141689637839447599,
+                hi_hi: 5182790949074909961,
+            }),
+            calldata: calldata.to_vec(),
+        };
+
+        // inverse selector and to for testing easyness
+        let extracted = extract_v1_tx_to(&tx).await.unwrap();
+        assert!(extracted.len() == 2);
+        assert_eq!(
+            extracted[0].to_hex().as_str(),
+            "0x07561da72afe49c51f96320f475005779ac7fa707eefd1196fced86bdf53859a"
+        );
+        assert_eq!(
+            extracted[1].to_hex().as_str(),
+            "0x02913ee03e5e3308c41e308bd391ea4faac9b9cb5062c76a6b3ab4f65397e106"
+        );
+    }
+}

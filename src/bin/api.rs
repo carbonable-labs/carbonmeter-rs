@@ -2,6 +2,7 @@ use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use anyhow::Result;
 use carbonmeter_rs::{
     db::get_ro_db_connection_with_prefix_extractor,
+    get_last_handled_block,
     monitoring::{MonitoringData, MonitoringItem},
     serializer::deserialize_from_bytes,
 };
@@ -9,6 +10,7 @@ use chrono::{Local, TimeZone};
 use log::debug;
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded, ReadOptions};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::sync::Arc;
 
 pub struct AppDependencies {
@@ -19,6 +21,14 @@ pub struct AppDependencies {
 pub struct TimerangeQuery {
     pub start: String,
     pub end: String,
+}
+
+async fn get_last_block_ingested() -> impl Responder {
+    debug!("/monitoring/last_block");
+    match get_last_handled_block().await {
+        Ok(block) => HttpResponse::Ok().json(json!({ "last_block": block.to_string() })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({ "error": e.to_string() })),
+    }
 }
 
 async fn get_global_protocol_txs(q: web::Query<TimerangeQuery>) -> impl Responder {
@@ -107,6 +117,7 @@ async fn main() -> Result<()> {
         App::new().service(
             web::scope("/monitoring/data")
                 .route("/global", web::get().to(get_global_protocol_txs))
+                .route("/last_block", web::get().to(get_last_block_ingested))
                 .route("/{contract}", web::get().to(get_protocol_txs)),
         )
     })
